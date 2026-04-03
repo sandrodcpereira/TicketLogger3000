@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/TicketLogger3000/static/css/main.e6c13ad2.css",
+    "main.js": "/TicketLogger3000/static/js/main.ea53fc47.js",
+    "static/js/453.e05a8ae6.chunk.js": "/TicketLogger3000/static/js/453.e05a8ae6.chunk.js",
+    "index.html": "/TicketLogger3000/index.html",
+    "main.e6c13ad2.css.map": "/TicketLogger3000/static/css/main.e6c13ad2.css.map",
+    "main.ea53fc47.js.map": "/TicketLogger3000/static/js/main.ea53fc47.js.map",
+    "453.e05a8ae6.chunk.js.map": "/TicketLogger3000/static/js/453.e05a8ae6.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e6c13ad2.css",
+    "static/js/main.ea53fc47.js"
+  ]
+}
