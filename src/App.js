@@ -916,7 +916,7 @@ function generateBackSVGString() {
   <circle cx="${W/2}" cy="${H/2}" r="80" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
   <circle cx="${W/2}" cy="${H/2}" r="50" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
   <path d="M${W/2-16} ${H/2} L${W/2} ${H/2-20} L${W/2+16} ${H/2} L${W/2} ${H/2+20}Z" fill="rgba(255,255,255,0.3)"/>
-  <text x="${W/2}" y="${H-80}" font-size="28" font-weight="600" fill="rgba(255,255,255,0.4)" font-family="DM Sans, Arial, sans-serif" text-anchor="middle" letter-spacing="4">TICKETLOGGER3000</text>
+  <text x="${W/2}" y="${H-80}" font-size="28" font-weight="600" fill="rgba(255,255,255,0.4)" font-family="DM Sans, Arial, sans-serif" text-anchor="middle" letter-spacing="4">I Was There</text>
 </svg>`;
 }
 
@@ -1282,7 +1282,7 @@ The Velvet Static,Barbican Centre,2026-04-01,Incredible set front row!`;
             <button className="settings-action-btn" onClick={handleExport}>Export concerts</button>
           </div>
           <input ref={fileRef} type="file" accept=".csv" style={{ display:"none" }} onChange={handleImport}/>
-          <div className="settings-meta">TicketLogger3000 · V0.1 April 2026</div>
+          <div className="settings-meta">I Was There · V0.1 April 2026</div>
           <button className="settings-danger" onClick={handleClear}>Clear all concert data</button>
           <button className="settings-danger" style={{ color:"#888", marginTop:4 }} onClick={handleLoadDemo}>Load demo concerts</button>
           <div style={{ height: 16 }}/>
@@ -1320,7 +1320,7 @@ function HomeScreen({ concerts, onAdd, onView, userName, onSettings }) {
               <path d="M8 16 L16 8 L28 16 L16 24 Z" fill="white" opacity="0.6"/>
             </svg>
           </div>
-          <span className="app-logo-text">TicketLogger3000</span>
+          <span className="app-logo-text">I Was There</span>
         </div>
         <button className="avatar-btn" onClick={onSettings}>{initial}</button>
       </div>
