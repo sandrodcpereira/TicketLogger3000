@@ -789,7 +789,7 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
     // This bows the centre of the card toward the viewer while the edges stay flat.
     // We also apply a tiny vertical curl for a more organic feel.
     const CURL_Z = 0.1;  // max forward bow (tune: 0.0 = flat, 0.15 = noticeable)
-    const CURL_Y = 0;  // subtle vertical bow
+    const CURL_Y = 0.05;  // subtle vertical bow
     const pos = geo.attributes.position;
     const halfW2 = W2 / 2;
     const halfH2 = H2 / 2;
@@ -810,7 +810,80 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
       edgeMat,                                                    // left edge
       edgeMat,                                                    // top edge
       edgeMat,                                                    // bottom edge
-      new THREE.MeshBasicMaterial({ map: frontTex }),             // front face (+z)
+      (() => {
+        // Holographic ShaderMaterial for favourited tickets.
+        // Middle-ground intensity: Fresnel-keyed rainbow that stays translucent
+        // enough to keep the ticket text readable at all angles.
+        const holoVert = `
+          varying vec2 vUv;
+          varying vec3 vNormal;
+          varying vec3 vViewPos;
+          void main() {
+            vUv = uv;
+            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+            vViewPos   = mvPos.xyz;
+            vNormal    = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * mvPos;
+          }
+        `;
+        const holoFrag = `
+          uniform sampler2D uMap;
+          uniform float     uTime;
+          varying vec2  vUv;
+          varying vec3  vNormal;
+          varying vec3  vViewPos;
+
+          vec3 hsl2rgb(float h, float s, float l) {
+            float c = (1.0 - abs(2.0*l - 1.0)) * s;
+            float x = c * (1.0 - abs(mod(h*6.0, 2.0) - 1.0));
+            float m = l - c*0.5;
+            vec3 rgb;
+            if      (h < 1.0/6.0) rgb = vec3(c,x,0.0);
+            else if (h < 2.0/6.0) rgb = vec3(x,c,0.0);
+            else if (h < 3.0/6.0) rgb = vec3(0.0,c,x);
+            else if (h < 4.0/6.0) rgb = vec3(0.0,x,c);
+            else if (h < 5.0/6.0) rgb = vec3(x,0.0,c);
+            else                   rgb = vec3(c,0.0,x);
+            return rgb + m;
+          }
+
+          void main() {
+            vec4  base    = texture2D(uMap, vUv);
+            vec3  viewDir = normalize(-vViewPos);
+            float cosA    = max(dot(vNormal, viewDir), 0.0);
+            float fresnel = 1.0 - cosA;
+
+            // Hue varies with viewing angle, UV position, and slow time drift.
+            // Multipliers keep bands wide enough to read as colour, not noise.
+            float hue     = mod(fresnel * 1.5 + vUv.x * 0.7 + vUv.y * 1.5 + uTime * 0.15, 1.0);
+            vec3  rainbow = hsl2rgb(hue, 1.90, 0.9);
+
+            // Blend: floor of 0.12 so a hint of colour is always present,
+            // but the Fresnel term keeps the straight-on face mostly opaque/readable.
+            float blend   = 0.12 + pow(fresnel, 1.6) * 0.8;
+            vec3  col     = mix(base.rgb, rainbow, blend);
+
+            // Subtle specular highlight — narrow enough not to blow out text
+            float shimmer = pow(max(cosA - 0.72, 0.0) / 0.4, 8.0) * 0.1;
+            col = col + vec3(shimmer);
+
+            gl_FragColor  = vec4(col, base.a);
+          }
+        `;
+        if (propsRef.current.isFav) {
+          const mat = new THREE.ShaderMaterial({
+            uniforms: { uMap: { value: frontTex }, uTime: { value: 0.0 } },
+            vertexShader:   holoVert,
+            fragmentShader: holoFrag,
+            transparent: true,
+          });
+          // Stash shader strings on mat so the prop-update effect can hot-swap
+          mat._holoVert = holoVert;
+          mat._holoFrag = holoFrag;
+          return mat;
+        }
+        return new THREE.MeshBasicMaterial({ map: frontTex });
+      })(),                                                          // front face (+z)
       new THREE.MeshBasicMaterial({ map: backTex }),              // back face  (-z)
     ];
     const mesh = new THREE.Mesh(geo, mats);
@@ -827,6 +900,9 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
       if (state.autoRot) state.rotY += 0.008;
       if (!drag.active) { drag.velX *= 0.93; state.rotY += drag.velX * 0.012; }
       mesh.rotation.y = state.rotY;
+      // Advance holographic shader time (no-op for non-fav MeshBasicMaterial)
+      const fm = mesh.material[4];
+      if (fm && fm.type === "ShaderMaterial") fm.uniforms.uTime.value += 0.016;
       // No x-axis wobble — it causes z-fighting on angled views
       renderer.render(scene, camera);
     };
@@ -844,7 +920,7 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
 
-    threeRef.current = { alive, frontTex, backTex, frontCanvas, backCanvas, renderer };
+    threeRef.current = { alive, frontTex, backTex, frontCanvas, backCanvas, renderer, mesh };
 
     return () => {
       alive.v = false;
@@ -857,12 +933,64 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
     };
   }, []); // mount once
 
-  // ── Redraw front canvas when ticket data changes (no scene rebuild) ────────
+  // ── Redraw front canvas + hot-swap holo material when ticket data changes ────
   useEffect(() => {
     const t = threeRef.current;
     if (!t) return;
+
+    // Redraw canvas texture
     drawTicketFront(t.frontCanvas, { band, venue, date, isFav });
     t.frontTex.needsUpdate = true;
+
+    // Swap front material (index 4) if isFav has changed
+    const currentMat = t.mesh.material[4];
+    const isHolo = currentMat.type === "ShaderMaterial";
+    if (isFav && !isHolo) {
+      // Promote to holographic — recover shader strings stashed on any previous ShaderMaterial,
+      // or fall back to the copies embedded in the IIFE closure via _holo* properties.
+      // Since we can't easily reach the closure here, we just re-define them inline.
+      const hv = `
+        varying vec2 vUv; varying vec3 vNormal; varying vec3 vViewPos;
+        void main() {
+          vUv = uv;
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          vViewPos = mvPos.xyz; vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * mvPos;
+        }`;
+      const hf = `
+        uniform sampler2D uMap; uniform float uTime;
+        varying vec2 vUv; varying vec3 vNormal; varying vec3 vViewPos;
+        vec3 hsl2rgb(float h,float s,float l){
+          float c=(1.0-abs(2.0*l-1.0))*s; float x=c*(1.0-abs(mod(h*6.0,2.0)-1.0)); float m=l-c*0.5;
+          vec3 rgb;
+          if(h<1.0/6.0)rgb=vec3(c,x,0.0); else if(h<2.0/6.0)rgb=vec3(x,c,0.0);
+          else if(h<3.0/6.0)rgb=vec3(0.0,c,x); else if(h<4.0/6.0)rgb=vec3(0.0,x,c);
+          else if(h<5.0/6.0)rgb=vec3(x,0.0,c); else rgb=vec3(c,0.0,x);
+          return rgb+m;}
+        void main(){
+          vec4 base=texture2D(uMap,vUv);
+          vec3 viewDir=normalize(-vViewPos); float cosA=max(dot(vNormal,viewDir),0.0);
+          float fresnel=1.0-cosA;
+          float hue=mod(fresnel*2.5+vUv.x*0.7+vUv.y*0.5+uTime*0.15,1.0);
+          vec3 rainbow=hsl2rgb(hue,0.90,0.68);
+          float blend=0.12+pow(fresnel,1.6)*0.55;
+          vec3 col=mix(base.rgb,rainbow,blend);
+          float shimmer=pow(max(cosA-0.72,0.0)/0.28,8.0)*0.6;
+          col=col+vec3(shimmer);
+          gl_FragColor=vec4(col,base.a);}`;
+      const newMat = new THREE.ShaderMaterial({
+        uniforms: { uMap: { value: t.frontTex }, uTime: { value: 0.0 } },
+        vertexShader: hv, fragmentShader: hf, transparent: true,
+      });
+      const mats = [...t.mesh.material];
+      mats[4] = newMat;
+      t.mesh.material = mats;
+    } else if (!isFav && isHolo) {
+      // Demote back to plain material
+      const mats = [...t.mesh.material];
+      mats[4] = new THREE.MeshBasicMaterial({ map: t.frontTex });
+      t.mesh.material = mats;
+    }
   }, [band, venue, date, isFav]);
 
   return <div ref={mountRef} className="three-canvas" style={{ width, height }}/>;
