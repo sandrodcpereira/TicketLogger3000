@@ -384,6 +384,15 @@ const STYLES = `
 
   /* Prevent pinch-to-zoom — app-shell handles all touch itself */
   .app-shell { touch-action: pan-y; }
+
+  /* custom rotate to favourite board */
+  .fav-board > div {transform: scale(0.8)}
+  .fav-board > div:first-child {transform: rotate(2deg) scale(0.94);}
+  .fav-board > div:nth-child(2) {transform: rotate(-3deg) scale(0.94);}
+  .fav-board > div:nth-child(3) {transform: rotate(-3deg) scale(0.94);}
+  .fav-board > div:nth-child(4) {transform: rotate(-1deg) scale(0.94);}
+
+
 `;
 
 /* ─────────────────────────────────────────────
@@ -687,17 +696,9 @@ function drawTicketBack(canvas) {
   ctx.quadraticCurveTo(W, H, W-r, H); ctx.lineTo(r, H);
   ctx.quadraticCurveTo(0, H, 0, H-r); ctx.lineTo(0, r);
   ctx.quadraticCurveTo(0, 0, r, 0); ctx.closePath();
-  ctx.fillStyle = "#1a3bb0";
+  ctx.fillStyle = "#7E7E7E";
   ctx.fill();
   ctx.clip(); // clip all subsequent drawing to the rounded rect
-
-  // Grid lines
-  ctx.strokeStyle = "rgba(255,255,255,0.07)";
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 8; i++) {
-    ctx.beginPath(); ctx.moveTo(i*64, 0); ctx.lineTo(i*64, H); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, i*64); ctx.lineTo(W, i*64); ctx.stroke();
-  }
 
   // Dot grid
   ctx.fillStyle = "rgba(255,255,255,0.12)";
@@ -706,15 +707,6 @@ function drawTicketBack(canvas) {
     ctx.arc(32 + i*64, 32 + j*64, 3, 0, Math.PI*2);
     ctx.fill();
   }
-
-  // Concentric circles
-  [80, 120, 160].forEach((rad, k) => {
-    ctx.beginPath();
-    ctx.arc(W/2, H/2, rad, 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(255,255,255,${0.25 - k*0.06})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
 
   // Diamond
   ctx.fillStyle = "rgba(255,255,255,0.3)";
@@ -728,7 +720,7 @@ function drawTicketBack(canvas) {
   ctx.fillStyle = "rgba(255,255,255,0.35)";
   ctx.textAlign = "center";
   ctx.letterSpacing = "4px";
-  ctx.fillText("TICKETLOGGER3000", W/2, H - 70);
+  ctx.fillText("I Was There", W/2, H - 70);
   ctx.letterSpacing = "0px";
   ctx.textAlign = "left";
 }
