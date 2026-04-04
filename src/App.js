@@ -144,6 +144,7 @@ const STYLES = `
     color: #aaa;
     font-size: 14px;
     font-family: var(--font-body);
+    text-align: center;
   }
   .empty-icon { font-size: 32px; opacity: 0.4; }
 
@@ -166,6 +167,7 @@ const STYLES = `
     color: rgba(255,255,255,0.5);
     font-size: 13px;
     font-family: var(--font-body);
+    text-align: center;
   }
 
   /* Concert list item */
