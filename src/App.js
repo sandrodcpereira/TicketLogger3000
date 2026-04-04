@@ -388,11 +388,10 @@ const STYLES = `
   .app-shell { touch-action: pan-y; }
 
   /* custom rotate to favourite board */
-  .fav-board > div {transform: scale(0.8)}
-  .fav-board > div:first-child {transform: rotate(2deg) scale(0.94);}
-  .fav-board > div:nth-child(2) {transform: rotate(-3deg) scale(0.94);}
-  .fav-board > div:nth-child(3) {transform: rotate(-3deg) scale(0.94);}
-  .fav-board > div:nth-child(4) {transform: rotate(-1deg) scale(0.94);}
+  .fav-board > .fav-ticket-wrap:first-child {transform: rotate(2deg) scale(0.94);}
+  .fav-board > .fav-ticket-wrap:nth-child(2) {transform: rotate(-3deg) scale(0.94);}
+  .fav-board > .fav-ticket-wrap:nth-child(3) {transform: rotate(-3deg) scale(0.94);}
+  .fav-board > .fav-ticket-wrap:nth-child(4) {transform: rotate(-1deg) scale(0.94);}
 
 
 `;
@@ -749,6 +748,8 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
     camera.position.set(0, 0, 3.2);
 
+
+
     // Draw canvases synchronously
     const frontCanvas = document.createElement("canvas");
     frontCanvas.width = frontCanvas.height = 512;
@@ -877,6 +878,8 @@ function generateTicketSVGString(band, venue, date, isFav) {
     }
     bx += w + gap;
   }
+
+
 
   // Wrap band lines
   const charsPerLine = Math.floor(W / (bandFontSize * 0.55));
