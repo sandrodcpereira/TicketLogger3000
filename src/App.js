@@ -380,6 +380,9 @@ const STYLES = `
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 0; }
+
+  /* Prevent pinch-to-zoom — app-shell handles all touch itself */
+  .app-shell { touch-action: pan-y; }
 `;
 
 /* ─────────────────────────────────────────────
@@ -762,8 +765,32 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
     const frontTex = new THREE.CanvasTexture(frontCanvas);
     const backTex  = new THREE.CanvasTexture(backCanvas);
 
-    // Single BoxGeometry — Three.js face order is deterministic, no z-fighting.
-    // Face indices: 0=+x, 1=-x, 2=+y, 3=-y, 4=+z (front), 5=-z (back)
+    // Subdivided BoxGeometry so we have enough vertices to deform into a curve.
+    // Segments: 30 wide × 30 tall gives smooth curvature; depth stays 1 segment.
+    const W2 = 1.8, H2 = 1.8, D = 0.05;
+    const SEG = 30;
+    const geo = new THREE.BoxGeometry(W2, H2, D, SEG, SEG, 1);
+
+    // ── Vertex deformation: gentle horizontal paper curl ──────────────────────
+    // For every vertex we apply: Δz = curl × (1 − (x / halfW)²)
+    // This bows the centre of the card toward the viewer while the edges stay flat.
+    // We also apply a tiny vertical curl for a more organic feel.
+    const CURL_Z = 0.10;  // max forward bow (tune: 0.0 = flat, 0.15 = noticeable)
+    const CURL_Y = 0.02;  // subtle vertical bow
+    const pos = geo.attributes.position;
+    const halfW2 = W2 / 2;
+    const halfH2 = H2 / 2;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const nx = x / halfW2;   // normalised −1..1
+      const ny = y / halfH2;
+      const bow = CURL_Z * (1 - nx * nx) + CURL_Y * (1 - ny * ny);
+      pos.setZ(i, pos.getZ(i) + bow);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+
     const edgeMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
     const mats = [
       edgeMat,                                                    // right edge
@@ -773,7 +800,7 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
       new THREE.MeshBasicMaterial({ map: frontTex }),             // front face (+z)
       new THREE.MeshBasicMaterial({ map: backTex }),              // back face  (-z)
     ];
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 0.05), mats);
+    const mesh = new THREE.Mesh(geo, mats);
     scene.add(mesh);
     scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
@@ -1023,7 +1050,6 @@ function FormSheet({ concert, onClose, onSave, favCount }) {
 function ViewSheet({ concertId, concerts, onClose, onEdit, onDelete }) {
   const concert = concerts.find(c => c.id === concertId) || null;
   const [showMenu, setShowMenu] = useState(false);
-  // If concert was deleted while sheet is open, close cleanly via effect (not during render)
   useEffect(() => { if (!concert) onClose(); }, [concert]);
   if (!concert) return null;
 
@@ -1038,44 +1064,86 @@ function ViewSheet({ concertId, concerts, onClose, onEdit, onDelete }) {
     <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sheet-panel" style={{ background: "var(--blue)" }}>
         <div className="sheet-drag-bar" style={{ background: "rgba(255,255,255,0.3)" }}/>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 16px 0" }}>
-          <button style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"white" }}
+
+        {/* Top bar — kebab left, close right. Menu floats absolutely below kebab. */}
+        <div style={{ position:"relative", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 16px 0" }}>
+          <button
+            style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"white", flexShrink:0 }}
             onClick={() => setShowMenu(m => !m)}>
-            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
               <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
             </svg>
           </button>
-          <button style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"white" }}
+          <button
+            style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"white", flexShrink:0 }}
             onClick={onClose}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
+
+          {/* Floating dropdown — positioned absolutely so it overlays content */}
+          {showMenu && (
+            <>
+              {/* Tap-outside dismissal backdrop */}
+              <div
+                style={{ position:"fixed", inset:0, zIndex:10 }}
+                onClick={() => setShowMenu(false)}
+              />
+              <div style={{
+                position:"absolute", top:"calc(100% + 6px)", left:0,
+                background:"white", borderRadius:16, overflow:"hidden",
+                minWidth:200, zIndex:20,
+                boxShadow:"0 8px 32px rgba(0,0,0,0.25)",
+              }}>
+                <div
+                  className="menu-item"
+                  style={{ padding:"14px 18px" }}
+                  onClick={() => { setShowMenu(false); onEdit(concert); }}>
+                  Edit concert
+                </div>
+                <div
+                  className="menu-item danger"
+                  style={{ padding:"14px 18px" }}
+                  onClick={() => { setShowMenu(false); handleDelete(); }}>
+                  Delete concert
+                </div>
+              </div>
+            </>
+          )}
         </div>
-        {showMenu && (
-          <div style={{ margin:"8px 16px", background:"white", borderRadius:16, overflow:"hidden" }}>
-            <div className="menu-item" style={{ padding:"14px 16px" }} onClick={() => { onEdit(concert); onClose(); }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit concert
-            </div>
-            <div className="menu-item danger" style={{ padding:"14px 16px" }} onClick={handleDelete}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              Delete concert
-            </div>
-          </div>
-        )}
-        <div style={{ padding:"24px 0", display:"flex", alignItems:"center", justifyContent:"center" }}>
+
+        {/* 3D ticket */}
+        <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px 16px" }}>
           <ThreeTicket band={concert.band} venue={concert.venue}
             date={concert.concertDate} isFav={concert.isFavourite}
-            width={260} height={260}/>
+            width={270} height={270}/>
         </div>
-        <div style={{ textAlign:"center", paddingBottom: 40 }}>
-          <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", fontFamily:"var(--font-body)", marginTop:8 }}>
-            {concert.venue} · {formatDate(concert.concertDate)}
+
+        {/* Metadata */}
+        <div style={{ textAlign:"center", padding:"0 32px 20px" }}>
+          <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", fontFamily:"var(--font-body)", lineHeight:1.5 }}>
+            {[concert.venue, formatDate(concert.concertDate)].filter(Boolean).join(" · ")}
           </div>
           {concert.comment && (
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.7)", fontFamily:"var(--font-body)", marginTop:8, padding:"0 32px" }}>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.75)", fontFamily:"var(--font-body)", marginTop:6, fontStyle:"italic" }}>
               "{concert.comment}"
             </div>
           )}
+        </div>
+
+        {/* Share button */}
+        <div style={{ padding:"0 16px 32px" }}>
+          <button style={{
+            width:"100%", padding:"16px",
+            background:"var(--blue-navy)", color:"white",
+            border:"none", borderRadius:"100px",
+            fontSize:16, fontWeight:600,
+            fontFamily:"var(--font-body)",
+            cursor:"pointer",
+            transition:"transform 0.1s",
+          }}
+            onClick={() => {}}>
+            Share ticket
+          </button>
         </div>
       </div>
     </div>
@@ -1145,6 +1213,62 @@ function SettingsSheet({ onClose, concerts, setConcerts, userName, setUserName }
     }
   };
 
+  const handleLoadDemo = () => {
+    if (!window.confirm("Load 40 demo concerts? This will add them to your existing data.")) return;
+    const csv = `band,venue,concertDate,comment
+The Velvet Static,Roundhouse,2020-07-15,
+Neon Palms,O2 Brixton Academy,2021-03-22,Supporting act was better honestly
+The Velvet Static,Electric Ballroom,2022-11-04,
+Hollow Earth,Roundhouse,2022-06-18,Best show I've ever seen
+The Midnight Echoes,Scala,2023-01-29,
+Neon Palms,O2 Brixton Academy,2023-04-11,Came with friends amazing night
+The Velvet Static,O2 Brixton Academy,2023-05-03,They played the old stuff!
+Pale Riders,Roundhouse,2023-07-19,
+Hollow Earth,Electric Ballroom,2023-08-25,Sound was a bit off but great energy
+The Midnight Echoes,O2 Brixton Academy,2023-09-14,
+The Velvet Static,Roundhouse,2023-10-07,New album sounded great live
+Pale Riders,Scala,2023-11-02,
+Neon Palms,Village Underground,2023-12-16,Incredible set front row!
+The Velvet Static,O2 Brixton Academy,2024-01-20,
+Glass Animals Jr.,Roundhouse,2024-02-08,Solo trip totally worth it
+The Midnight Echoes,Electric Ballroom,2024-03-15,
+Hollow Earth,O2 Brixton Academy,2024-04-27,
+Pale Riders,Roundhouse,2024-06-01,Best show I've ever seen
+Neon Palms,Scala,2024-07-13,
+The Velvet Static,Electric Ballroom,2024-08-22,Incredible set front row!
+Solar Flare,O2 Brixton Academy,2024-09-06,
+Glass Animals Jr.,Village Underground,2024-10-18,
+The Velvet Static,O2 Brixton Academy,2024-11-30,New album sounded great live
+Hollow Earth,Roundhouse,2025-01-11,
+Pale Riders,O2 Brixton Academy,2025-02-23,
+Neon Palms,Electric Ballroom,2025-03-14,Came with friends amazing night
+The Velvet Static,Roundhouse,2025-04-05,
+Solar Flare,Scala,2025-05-17,
+The Midnight Echoes,O2 Brixton Academy,2025-06-28,Sound was a bit off but great energy
+Glass Animals Jr.,Fabric,2025-07-09,
+The Velvet Static,O2 Brixton Academy,2025-08-21,They played the old stuff!
+Pale Riders,Electric Ballroom,2025-09-03,
+Neon Palms,O2 Brixton Academy,2025-10-16,Incredible set front row!
+Crater Lake,Roundhouse,2025-11-27,Solo trip totally worth it
+The Velvet Static,Village Underground,2025-12-12,
+Distant Signals,O2 Brixton Academy,2026-01-08,
+The Velvet Static,Electric Ballroom,2026-02-19,New album sounded great live
+Hollow Earth,O2 Brixton Academy,2026-03-04,Best show I've ever seen
+Wax Phantom,Oslo Hackney,2026-03-22,
+The Velvet Static,Barbican Centre,2026-04-01,Incredible set front row!`;
+    const lines = csv.trim().split("\n");
+    const headers = lines[0].split(",");
+    const now = new Date().toISOString();
+    const imported = lines.slice(1).map(line => {
+      const row = line.split(",");
+      const get = (key) => { const i = headers.indexOf(key); return i >= 0 ? (row[i] || "").trim() : ""; };
+      return { id: genId(), createdAt: now, updatedAt: now,
+        band: get("band"), venue: get("venue"), concertDate: get("concertDate"),
+        comment: get("comment"), isFavourite: false, price: null, group: null };
+    }).filter(c => c.band);
+    setConcerts(prev => [...prev, ...imported]);
+  };
+
   return (
     <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sheet-panel">
@@ -1167,6 +1291,7 @@ function SettingsSheet({ onClose, concerts, setConcerts, userName, setUserName }
           <input ref={fileRef} type="file" accept=".csv" style={{ display:"none" }} onChange={handleImport}/>
           <div className="settings-meta">TicketLogger3000 · V0.1 April 2026</div>
           <button className="settings-danger" onClick={handleClear}>Clear all concert data</button>
+          <button className="settings-danger" style={{ color:"#888", marginTop:4 }} onClick={handleLoadDemo}>Load demo concerts</button>
           <div style={{ height: 16 }}/>
         </div>
       </div>
@@ -1382,6 +1507,13 @@ export default function App() {
   const [userName, setUserName] = useLocalStorage("tl3k_user", "");
   const [tab, setTab] = useState("home");
   const [sheet, setSheet] = useState(null); // null | { type, data }
+
+  // Disable pinch-to-zoom: set viewport meta to user-scalable=no
+  useEffect(() => {
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "viewport"; document.head.appendChild(meta); }
+    meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
+  }, []);
 
   const favCount = concerts.filter(c => c.isFavourite).length;
 
