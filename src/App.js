@@ -179,7 +179,7 @@ const STYLES = `
   }
   .concert-item:last-child { border-bottom: none; }
   .concert-thumb {
-    width: 52px; height: 52px; border-radius: 8px;
+    width: 52px; height: 52px; border-radius: 0;
     flex-shrink: 0; overflow: hidden;
   }
   .concert-info { flex: 1; min-width: 0; }
@@ -553,7 +553,7 @@ function drawTicketFront(canvas, { band, venue, date, isFav }) {
   ctx.clearRect(0, 0, W, H);
 
   // ── Background ────────────────────────────────────────────────────────────
-  const r = 40; // corner radius
+  const r = 0; // corner radius
   ctx.beginPath();
   ctx.moveTo(r, 0); ctx.lineTo(W-r, 0);
   ctx.quadraticCurveTo(W, 0, W, r);
@@ -691,7 +691,7 @@ function drawTicketBack(canvas) {
   ctx.clearRect(0, 0, W, H);
 
   // Rounded rect background
-  const r = 40;
+  const r = 0;
   ctx.beginPath();
   ctx.moveTo(r, 0); ctx.lineTo(W-r, 0);
   ctx.quadraticCurveTo(W, 0, W, r); ctx.lineTo(W, H-r);
