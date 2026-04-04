@@ -44,19 +44,21 @@ const STYLES = `
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 16px);
+    padding-bottom: 128px;
   }
 
   /* Bottom Nav */
   .bottom-nav {
     position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: calc(var(--bottom-nav-h) + var(--safe-bottom));
+    bottom: 24px;
+    left: 24px;
+    right: 24px;
+    /* height: calc(var(--bottom-nav-h) + var(--safe-bottom)); */
     display: flex;
-    align-items: flex-start;
-    padding: 10px 16px var(--safe-bottom);
+    align-items: stretch;
+    padding: 8px;
     background: var(--white);
-    border-radius: 24px 24px 0 0;
+    border-radius: 48px;
     z-index: 100;
     gap: 4px;
   }
@@ -67,7 +69,7 @@ const STYLES = `
     align-items: center;
     gap: 4px;
     padding: 8px 0;
-    border-radius: 16px;
+    border-radius: 40px;
     cursor: pointer;
     transition: background 0.15s;
     font-size: 11px;
@@ -130,7 +132,7 @@ const STYLES = `
     margin: 0 16px;
     background: var(--cream);
     border-radius: 20px;
-    padding: 16px;
+    padding: 8px 16px;
     overflow: hidden;
   }
 
@@ -221,7 +223,6 @@ const STYLES = `
   /* Ticket preview area */
   .ticket-preview-area {
     background: var(--blue);
-    border-radius: 0 0 24px 24px;
     padding: 24px 16px 32px;
     display: flex; align-items: center; justify-content: center;
     position: relative;
@@ -282,7 +283,7 @@ const STYLES = `
   .save-btn:active { transform: scale(0.98); }
 
   /* Stats screen */
-  .stats-screen { background: var(--blue); padding: 24px 16px; }
+  .stats-screen { background: var(--blue); padding: 24px 16px 128px 16px; }
   .stats-title { font-size: 24px; font-weight: 700; color: white; font-family: var(--font-body); margin-bottom: 20px; }
   .stats-section-title { font-size: 15px; font-weight: 600; color: white; margin-bottom: 10px; font-family: var(--font-body); }
   .stats-card {
@@ -767,7 +768,7 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
 
     // Subdivided BoxGeometry so we have enough vertices to deform into a curve.
     // Segments: 30 wide × 30 tall gives smooth curvature; depth stays 1 segment.
-    const W2 = 1.8, H2 = 1.8, D = 0.05;
+    const W2 = 1.8, H2 = 1.8, D = 0.005;
     const SEG = 30;
     const geo = new THREE.BoxGeometry(W2, H2, D, SEG, SEG, 1);
 
@@ -775,8 +776,8 @@ function ThreeTicket({ band, venue, date, isFav, width = 240, height = 240 }) {
     // For every vertex we apply: Δz = curl × (1 − (x / halfW)²)
     // This bows the centre of the card toward the viewer while the edges stay flat.
     // We also apply a tiny vertical curl for a more organic feel.
-    const CURL_Z = 0.10;  // max forward bow (tune: 0.0 = flat, 0.15 = noticeable)
-    const CURL_Y = 0.02;  // subtle vertical bow
+    const CURL_Z = 0.1;  // max forward bow (tune: 0.0 = flat, 0.15 = noticeable)
+    const CURL_Y = 0;  // subtle vertical bow
     const pos = geo.attributes.position;
     const halfW2 = W2 / 2;
     const halfH2 = H2 / 2;
@@ -1089,7 +1090,7 @@ function ViewSheet({ concertId, concerts, onClose, onEdit, onDelete }) {
                 onClick={() => setShowMenu(false)}
               />
               <div style={{
-                position:"absolute", top:"calc(100% + 6px)", left:0,
+                position:"absolute", top:"calc(100% + 6px)", left:16,
                 background:"white", borderRadius:16, overflow:"hidden",
                 minWidth:200, zIndex:20,
                 boxShadow:"0 8px 32px rgba(0,0,0,0.25)",
